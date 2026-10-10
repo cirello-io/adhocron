@@ -38,6 +38,7 @@ func main() {
 
 	scheduler := cron.New(cron.WithChain(
 		cron.Recover(cron.DefaultLogger),
+		cron.SkipIfStillRunning(cron.DefaultLogger),
 	))
 	if _, err := scheduler.AddFunc(spec, func() { run(ctx, cmd) }); err != nil {
 		log.Fatalf("invalid cron expression %q: %v", spec, err)

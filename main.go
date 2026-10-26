@@ -48,10 +48,17 @@ func main() {
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sig)
 	<-sig
-	log.Print("shutting down")
-	cancel() // terminate a command still in flight
-	<-scheduler.Stop().Done()
+	done := scheduler.Stop().Done()
+	log.Print("shutting down; waiting for current run")
+	select {
+	case <-done:
+	case <-sig:
+		log.Print("forcing shutdown")
+		cancel() // terminate a command still in flight
+		<-done
+	}
 }
 
 // parseArgs splits the command line into the cron expression and the
@@ -82,6 +89,7 @@ func parseArgs(args []string) (string, []string, error) {
 func run(ctx context.Context, cmd []string) {
 	log.Printf("running: %s", strings.Join(cmd, " "))
 	c := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
